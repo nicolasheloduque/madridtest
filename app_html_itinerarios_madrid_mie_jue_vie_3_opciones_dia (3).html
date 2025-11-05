@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Madrid • 3 días × 3 opciones (super responsive + iPhone ready)</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect width='256' height='256' rx='56' fill='%230f172a'/><text x='50%' y='55%' text-anchor='middle' font-size='128' fill='white' font-family='Arial'>🗺️</text></svg>">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
+  <link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --safe-b: env(safe-area-inset-bottom); --safe-t: env(safe-area-inset-top); }
+    html, body { height: 100%; }
+    #map { height: 60vh; }
+    @media (max-width: 1023px){
+      #map { height: 68vh; }
+      .desktop-only { display:none !important; }
+    }
+    @media (min-width: 1024px){ .mobile-only { display:none !important; } }
+    .marker-num { background:#111; color:#fff; border-radius:14px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:700; border:2px solid #fff; box-shadow:0 3px 10px rgba(0,0,0,.25); }
+    .tap { min-height:44px; min-width:44px; display:inline-flex; align-items:center; justify-content:center; }
+    .pill { display:inline-flex; align-items:center; gap:4px; border-radius:9999px; padding:2px 8px; font-size:12px; font-weight:500; }
+    .tab-btn[aria-selected="true"]{ background:#0f172a; color:white; }
+    .section { display:contents; }
+    @media (max-width:1023px){ .section { display:none; } .section.active { display:block; } }
+    .bottom-bar { padding-bottom: calc(12px + var(--safe-b)); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+      <i class="ph-map-trifold text-xl"></i>
+      <h1 class="text-lg font-semibold">Madrid – 3 días × 3 opciones</h1>
+      <span class="ml-auto text-xs text-slate-500">Super responsive • iPhone ready</span>
+    </div>
+  </header>
+
+  <nav class="mobile-only fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 bottom-bar">
+    <div class="max-w-7xl mx-auto px-3 py-2 grid grid-cols-4 gap-2">
+      <button class="tab-btn tap rounded-xl border border-slate-300" data-tab="mapa" aria-selected="true"><i class="ph-compass"></i>&nbsp;<span class="text-sm">Mapa</span></button>
+      <button class="tab-btn tap rounded-xl border border-slate-300" data-tab="itinerario"><i class="ph-list-bullets"></i>&nbsp;<span class="text-sm">Itinerario</span></button>
+      <button class="tab-btn tap rounded-xl border border-slate-300" data-tab="restaurantes"><i class="ph-fork-knife"></i>&nbsp;<span class="text-sm">Restaurantes</span></button>
+      <button class="tab-btn tap rounded-xl border border-slate-300" data-tab="tabernas"><i class="ph-wine"></i>&nbsp;<span class="text-sm">Arroces & Tabernas</span></button>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 py-4 pb-28 space-y-4">
+    <section class="grid grid-cols-1 md:grid-cols-4 gap-3 section active" data-section="mapa">
+      <div>
+        <label class="text-sm font-medium">Día</label>
+        <select id="daySelect" class="tap mt-1 w-full rounded-xl border-slate-300 focus:ring-2 focus:ring-slate-400">
+          <option value="wednesday">Miércoles</option>
+          <option value="thursday">Jueves</option>
+          <option value="friday">Viernes</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm font-medium">Alternativa</label>
+        <select id="altSelect" class="tap mt-1 w-full rounded-xl border-slate-300 focus:ring-2 focus:ring-slate-400">
+          <option value="A">A – Clásica</option>
+          <option value="B">B – Foodie & terrazas</option>
+          <option value="C">C – Arte & compras</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-sm font-medium">Ritmo</label>
+        <select id="paceSelect" class="tap mt-1 w-full rounded-xl border-slate-300 focus:ring-2 focus:ring-slate-400">
+          <option value="normal">Normal</option>
+          <option value="relaxed">Relajado</option>
+          <option value="intense">Intenso</option>
+        </select>
+      </div>
+      <div class="flex items-end gap-2">
+        <button id="btnExport" class="tap w-full rounded-xl bg-slate-900 text-white px-3 py-2 hover:bg-slate-800 transition">Exportar .ICS</button>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-4 section active" data-section="mapa">
+      <div class="lg:col-span-2">
+        <div id="map" class="rounded-2xl overflow-hidden border border-slate-200"></div>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-4 mt-4 desktop-only" data-section="restaurantes">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">Top restaurantes para ti</h2>
+            <div class="flex gap-2">
+              <input id="restoSearch" placeholder="Buscar (nombre, barrio, estilo)" class="tap rounded-xl border border-slate-300 px-3 py-2 text-sm w-56" />
+              <label class="text-sm flex items-center gap-2"><input id="toggleRestoLayer" type="checkbox" class="accent-slate-900" checked> Ver en mapa</label>
+            </div>
+          </div>
+          <div id="restoList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-4 mt-4 desktop-only" data-section="tabernas">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">Arrocerías & Tabernas top</h2>
+            <div class="flex gap-2 flex-wrap">
+              <input id="barSearch" placeholder="Buscar (nombre, barrio, estilo)" class="tap rounded-xl border border-slate-300 px-3 py-2 text-sm w-56" />
+              <label class="text-sm flex items-center gap-2"><input id="toggleBarLayer" type="checkbox" class="accent-slate-900" checked> Ver en mapa</label>
+              <label class="text-sm flex items-center gap-2"><input id="chkArroz" type="checkbox" class="accent-slate-900" checked> Solo arrocerías</label>
+              <label class="text-sm flex items-center gap-2"><input id="chkTaberna" type="checkbox" class="accent-slate-900" checked> Solo tabernas</label>
+            </div>
+          </div>
+          <div id="barList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+      </div>
+      <aside class="space-y-3">
+        <div class="rounded-2xl border border-slate-200 bg-white p-3">
+          <h3 class="font-semibold mb-2">Leyenda</h3>
+          <div class="flex flex-wrap gap-2 text-sm">
+            <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700">A pie</span>
+            <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-700">Metro</span>
+            <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Comida</span>
+            <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-700">Café</span>
+            <span class="px-2 py-1 rounded-full bg-violet-100 text-violet-700">Arte</span>
+            <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700">Compras</span>
+            <span class="px-2 py-1 rounded-full bg-teal-100 text-teal-700">Vinilos</span>
+            <span class="px-2 py-1 rounded-full bg-lime-100 text-lime-700">Aire libre</span>
+          </div>
+          <div class="mt-3 text-xs text-slate-500">Consejo: a pie entre Chueca y Malasaña; Metro para saltar a Salamanca.</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 desktop-only">
+          <h3 class="font-semibold mb-2">Filtros por barrio</h3>
+          <div class="flex flex-col gap-2 text-sm" id="hoodFilters"></div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-3 section" data-section="itinerario">
+          <h3 class="font-semibold mb-2">Resumen del día</h3>
+          <ul id="summaryList" class="space-y-2 text-sm"></ul>
+        </div>
+      </aside>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 section" data-section="itinerario">
+      <h2 class="text-lg font-semibold mb-3">Itinerario detallado</h2>
+      <div id="timeline" class="grid gap-3"></div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 section mobile-only" data-section="restaurantes">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Top restaurantes para ti</h2>
+        <div class="flex gap-2">
+          <input id="restoSearch_m" placeholder="Buscar (nombre, barrio, estilo)" class="tap rounded-xl border border-slate-300 px-3 py-2 text-sm w-56" />
+          <label class="text-sm flex items-center gap-2"><input id="toggleRestoLayer_m" type="checkbox" class="accent-slate-900" checked> Ver en mapa</label>
+        </div>
+      </div>
+      <div id="restoList_m" class="grid grid-cols-1 gap-3"></div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 section mobile-only" data-section="tabernas">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Arrocerías & Tabernas top</h2>
+        <div class="flex gap-2 flex-wrap">
+          <input id="barSearch_m" placeholder="Buscar (nombre, barrio, estilo)" class="tap rounded-xl border border-slate-300 px-3 py-2 text-sm w-56" />
+          <label class="text-sm flex items-center gap-2"><input id="toggleBarLayer_m" type="checkbox" class="accent-slate-900" checked> Ver en mapa</label>
+          <label class="text-sm flex items-center gap-2"><input id="chkArroz_m" type="checkbox" class="accent-slate-900" checked> Solo arrocerías</label>
+          <label class="text-sm flex items-center gap-2"><input id="chkTaberna_m" type="checkbox" class="accent-slate-900" checked> Solo tabernas</label>
+        </div>
+      </div>
+      <div id="barList_m" class="grid grid-cols-1 gap-3"></div>
+    </section>
+  </main>
+
+  <script>
+  // ====== PWA (omitir SW en sandbox) ======
+  (function setupPWA(){
+    try {
+      const manifest = {
+        name: "Madrid Trip Planner",
+        short_name: "Madrid Trip",
+        display: "standalone",
+        start_url: ".",
+        background_color: "#0f172a",
+        theme_color: "#0f172a",
+        icons: [
+          { src: "data:image/png;base64,iVBORw0KGgo=", sizes: "192x192", type: "image/png" },
+          { src: "data:image/png;base64,iVBORw0KGgo=", sizes: "512x512", type: "image/png" }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+      const murl = URL.createObjectURL(blob);
+      const link = document.createElement('link'); link.rel='manifest'; link.href=murl; document.head.appendChild(link);
+
+      const isSandbox = /oaiusercontent|sandbox/.test(location.hostname);
+      if('serviceWorker' in navigator && !isSandbox && location.protocol==='https:'){
+        // navigator.serviceWorker.register('/sw.js'); // producción
+        console.info('[PWA] listo para producción');
+      } else {
+        console.info('[PWA] SW omitido en sandbox/HTTP');
+      }
+    } catch(e){ console.warn('[PWA] Omitido:', e); }
+  })();
+
+  // ==== Datos base (POI) ====
+  const POI = {
+    // CHUECA
+    hanso2: {name:'HanSo Café 2', hood:'Chueca', cat:'cafe', lat:40.4209, lng:-3.6983, addr:'C. de la Reina, 5'},
+    plazaChueca: {name:'Plaza de Chueca', hood:'Chueca', cat:'walk', lat:40.4229, lng:-3.6975},
+    sanAnton: {name:'Mercado de San Antón', hood:'Chueca', cat:'food', lat:40.4236, lng:-3.6989},
+    fuencarral: {name:'Eje Fuencarral', hood:'Chueca', cat:'shops', lat:40.4243, lng:-3.6999},
+    cisneAzul: {name:'El Cisne Azul', hood:'Chueca', cat:'taberna', lat:40.4243, lng:-3.6990, style:'Setas & producto'},
+    celsoManolo: {name:'Celso y Manolo', hood:'Chueca', cat:'taberna', lat:40.4236, lng:-3.6998, style:'Taberna ilustrada'},
+
+    // MALASAÑA
+    biciCafe: {name:'La Bicicleta Café', hood:'Malasaña', cat:'cafe', lat:40.4238, lng:-3.7019},
+    dosMayo: {name:'Plaza del Dos de Mayo', hood:'Malasaña', cat:'walk', lat:40.4275, lng:-3.7033},
+    paracaidista: {name:'El Paracaidista (concept store)', hood:'Malasaña', cat:'shops', lat:40.4231, lng:-3.7029},
+    tribunal: {name:'Metro Tribunal', hood:'Malasaña', cat:'metro', lat:40.4270, lng:-3.7026},
+    cafeComercial: {name:'Café Comercial', hood:'Malasaña', cat:'cafe', lat:40.4291, lng:-3.7038},
+    marilians: {name:'Marilians Records', hood:'Malasaña', cat:'vinyl', lat:40.4279, lng:-3.7071},
+    ardosa: {name:'Bodega de la Ardosa', hood:'Malasaña', cat:'taberna', lat:40.4237, lng:-3.7026, style:'Clásica de culto'},
+    tasquita: {name:'La Tasquita de Enfrente', hood:'Malasaña', cat:'taberna', lat:40.4227, lng:-3.7012, style:'Alta cocina de barra'},
+
+    // SALAMANCA
+    serrano: {name:'Metro Serrano', hood:'Salamanca', cat:'metro', lat:40.4256, lng:-3.6866},
+    mercadoPaz: {name:'Mercado de la Paz (Casa Dani)', hood:'Salamanca', cat:'food', lat:40.4276, lng:-3.6842},
+    man: {name:'Museo Arqueológico Nacional', hood:'Salamanca', cat:'art', lat:40.4232, lng:-3.6889},
+    jorgeJuan: {name:'Jorge Juan (La Máquina / LBA)', hood:'Salamanca', cat:'food', lat:40.4246, lng:-3.6848},
+    retiro: {name:'Puerta de Alcalá / Retiro', hood:'Salamanca', cat:'outdoors', lat:40.4190, lng:-3.6880},
+
+    // LAVAPIÉS
+    tabacalera: {name:'La Tabacalera', hood:'Lavapiés', cat:'art', lat:40.4087, lng:-3.7007},
+    estaEsUnaPlaza: {name:'Esta es una Plaza', hood:'Lavapiés', cat:'outdoors', lat:40.4083, lng:-3.7000},
+    elSur: {name:'Taberna El Sur', hood:'Lavapiés', cat:'food', lat:40.4109, lng:-3.6991},
+
+    // LETRAS
+    laVenenciaNA: {name:'Motín Café (sin alcohol)', hood:'Las Letras', cat:'cafe', lat:40.4149, lng:-3.6986},
+    casaDeCervantes: {name:'Barrio de las Letras', hood:'Las Letras', cat:'walk', lat:40.4141, lng:-3.6989},
+
+    // LA LATINA
+    cavaBaja: {name:'Cava Baja', hood:'La Latina', cat:'walk', lat:40.4119, lng:-3.7086},
+    almendro13: {name:'Taberna El Almendro 13', hood:'La Latina', cat:'food', lat:40.4114, lng:-3.7078},
+    juanaLaLoca: {name:'Juana La Loca', hood:'La Latina', cat:'taberna', lat:40.4110, lng:-3.7101, style:'Tortilla caramelizada'},
+
+    // CHAMBERÍ
+    ponzano: {name:'Eje Ponzano', hood:'Chamberí', cat:'food', lat:40.4384, lng:-3.7004},
+    sorolla: {name:'Museo Sorolla', hood:'Chamberí', cat:'art', lat:40.4356, lng:-3.6917},
+
+    // CONDE DUQUE
+    condeDuque: {name:'Centro Cultural Conde Duque', hood:'Conde Duque', cat:'art', lat:40.4272, lng:-3.7102},
+
+    // MADRID RÍO
+    matadero: {name:'Matadero Madrid', hood:'Madrid Río', cat:'art', lat:40.3915, lng:-3.6974},
+    madridRio: {name:'Madrid Río', hood:'Madrid Río', cat:'outdoors', lat:40.4013, lng:-3.7200},
+
+    // CENTRO
+    granVia: {name:'Gran Vía', hood:'Centro', cat:'shops', lat:40.4202, lng:-3.7058},
+    cibeles: {name:'Cibeles / Paseo del Prado', hood:'Centro', cat:'walk', lat:40.4193, lng:-3.6934},
+
+    // === TOP RESTAURANTES (ampliado) ===
+    casaDespiece: {name:'Sala/Casa de Despiece', hood:'Chamberí', cat:'food', lat:40.4385, lng:-3.7008, top:true, style:'Producto & barra creativa'},
+    fismuler: {name:'Fismuler', hood:'Chamberí', cat:'food', lat:40.4298, lng:-3.6995, top:true, style:'Nordic & seasonal'},
+    estimar: {name:'Estimar Madrid', hood:'Salamanca', cat:'food', lat:40.4199, lng:-3.6948, top:true, style:'Marinos premium'},
+    ugochan: {name:'Ugo Chan', hood:'Chamartín', cat:'food', lat:40.4686, lng:-3.6762, top:true, style:'Japonesa creativa'},
+    sacha: {name:'Sacha', hood:'Chamartín', cat:'food', lat:40.4580, lng:-3.6890, top:true, style:'Clásico secreto'},
+    desde1911: {name:'Desde 1911', hood:'Tetuán', cat:'food', lat:40.4540, lng:-3.6900, top:true, style:'Pescados & brasas'},
+    streetxo: {name:'StreetXO', hood:'Salamanca', cat:'food', lat:40.4260, lng:-3.6880, top:true, style:'Fusión cañera'},
+    diverxo: {name:'DiverXO', hood:'Chamartín', cat:'food', lat:40.4575, lng:-3.6860, top:true, style:'3★ vanguardia'},
+    elParaguas: {name:'El Paraguas', hood:'Salamanca', cat:'food', lat:40.4247, lng:-3.6889, top:true, style:'Astur elegante'},
+    tenConTen: {name:'Ten con Ten', hood:'Salamanca', cat:'food', lat:40.4268, lng:-3.6882, top:true, style:'Brasserie cool'},
+    lakasa: {name:'Lakasa', hood:'Chamberí', cat:'food', lat:40.4467, lng:-3.6959, top:true, style:'Temporada & caza'},
+    triciclo: {name:'Triciclo', hood:'Las Letras', cat:'food', lat:40.4137, lng:-3.6965, top:true, style:'Mercado creativo'},
+    dstage: {name:'DSTAgE', hood:'Chamberí', cat:'food', lat:40.4291, lng:-3.6992, top:true, style:'Alta cocina contemporánea'},
+    barracuda: {name:'Barracuda MX', hood:'Salamanca', cat:'food', lat:40.4259, lng:-3.6869, top:true, style:'Mex marino por Sandoval'},
+    bibo: {name:'BiBo Madrid', hood:'Salamanca', cat:'food', lat:40.4269, lng:-3.6903, top:true, style:'Brasserie andaluza'},
+    quintinTop: {name:'Ultramarinos Quintín', hood:'Salamanca', cat:'food', lat:40.4252, lng:-3.6862, top:true, style:'Mercado chic'},
+
+    // === ARROCERÍAS (ampliado) ===
+    casaBenigna: {name:'Casa Benigna', hood:'Prosperidad', cat:'arroz', lat:40.4502, lng:-3.6687, style:'Paella al nido'},
+    stJames: {name:'St. James (Retiro)', hood:'Retiro', cat:'arroz', lat:40.4208, lng:-3.6766, style:'Clásico madrileño'},
+    elCaldero: {name:'El Caldero', hood:'Las Letras', cat:'arroz', lat:40.4130, lng:-3.6975, style:'Murciano auténtico'},
+    saBrisa: {name:'Sa Brisa', hood:'Salamanca', cat:'arroz', lat:40.4278, lng:-3.6812, style:'Ibicenco creativo'},
+    marMia: {name:'Mar Mía', hood:'Centro', cat:'arroz', lat:40.4209, lng:-3.7076, style:'Mediterráneo contemporáneo'},
+    socarrat: {name:'Socarrat Madrid', hood:'Chamberí', cat:'arroz', lat:40.4389, lng:-3.7035, style:'Valenciano experto'},
+    laBarraca: {name:'La Barraca', hood:'Centro', cat:'arroz', lat:40.4208, lng:-3.7010, style:'Clásico paellero'},
+    samm: {name:'Restaurante Samm', hood:'Prosperidad', cat:'arroz', lat:40.4493, lng:-3.6682, style:'Paellas top de Madrid'},
+    casaValencia: {name:'Casa de Valencia', hood:'Chamberí', cat:'arroz', lat:40.4352, lng:-3.6912, style:'Paella tradicional'},
+    ventorrillo: {name:'Ventorrillo Murciano', hood:'Chamberí', cat:'arroz', lat:40.4348, lng:-3.7042, style:'Arroces murcianos'},
+
+    // === TABERNAS (ampliado) ===
+    casaLabra: {name:'Casa Labra', hood:'Centro', cat:'taberna', lat:40.4175, lng:-3.7037, style:'Bacalao histórico'},
+    laCatapa: {name:'La Catapa', hood:'Retiro', cat:'taberna', lat:40.4188, lng:-3.6777, style:'Barra de nivel'},
+    docamar: {name:'Docamar', hood:'Quintana', cat:'taberna', lat:40.4325, lng:-3.6406, style:'Bravas míticas'},
+    arima: {name:'Arima Basque Gastronomy', hood:'Chamberí', cat:'taberna', lat:40.4395, lng:-3.7020, style:'Pintxos vascos'},
+    angelita: {name:'Angelita', hood:'Centro', cat:'taberna', lat:40.4206, lng:-3.7009, style:'Cocina contemporánea'},
+    castizo: {name:'Castizo', hood:'Salamanca', cat:'taberna', lat:40.4267, lng:-3.6869, style:'Neo-taberna'},
+    hermanosVinagre: {name:'Hermanos Vinagre', hood:'Chamberí', cat:'taberna', lat:40.4372, lng:-3.6994, style:'Encurtidos de culto'},
+    laVenenciaTab: {name:'La Venencia', hood:'Las Letras', cat:'taberna', lat:40.4152, lng:-3.6993, style:'Jerez tradicional (ojo alcohol)'},
+    bodegaRicla: {name:'Bodega de la Ardosa (Tribunal)', hood:'Malasaña', cat:'taberna', lat:40.4240, lng:-3.7018, style:'Vermut & tortilla'},
+    juanaLocaTab: {name:'Juana La Loca (pintxos)', hood:'La Latina', cat:'taberna', lat:40.4111, lng:-3.7098, style:'Pintxos firma'}
+  };
+
+  // ==== Utilidades ====
+  function block(time, key, note='') { return { time, ...POI[key], note }; }
+
+  // ==== Itinerarios (Mié/Jue/Vie con 3 alternativas) ====
+  const itineraries = {
+    wednesday: {
+      A: [
+        block('09:00','hanso2','Desayuno de especialidad.'),
+        block('09:45','plazaChueca','Calles Hortaleza & Augusto Figueroa.'),
+        block('10:30','sanAnton','Sube a la terraza.'),
+        block('11:15','fuencarral','Paseo hacia Malasaña.'),
+        block('11:45','marilians','Caza de vinilos.'),
+        block('12:30','dosMayo','Bohemia, fotos.'),
+        block('13:10','tribunal','Metro → Serrano.'),
+        block('13:30','serrano','Inicio Salamanca.'),
+        block('14:00','mercadoPaz','Almuerzo (tortilla).'),
+        block('15:30','man','Salas clave.'),
+        block('17:00','jorgeJuan','Café / postre.'),
+        block('18:30','retiro','Aire libre.'),
+        block('20:00','cibeles','Cierre fotográfico.')
+      ],
+      B: [
+        block('09:00','cafeComercial','Desayuno clásico.'),
+        block('09:45','escridiscos','Ampliar colección (rock clásico).'),
+        block('10:30','paracaidista','Concept store + azotea.'),
+        block('11:30','fuencarral','Cruce a Chueca.'),
+        block('12:15','sanAnton','Tapas sin alcohol / zumos.'),
+        block('13:00','tribunal','Metro a Lavapiés.'),
+        block('13:30','elSur','Almuerzo casero.'),
+        block('15:00','tabacalera','Murales y centro social.'),
+        block('16:30','estaEsUnaPlaza','Huerto urbano y descanso.'),
+        block('18:00','retiro','Atardecer si aún hay luz.')
+      ],
+      C: [
+        block('09:00','hanso2','Desayuno ligero.'),
+        block('09:40','plazaChueca','Arquitectura y fachadas.'),
+        block('10:15','marilians','Caza de vinilos.'),
+        block('11:00','tribunal','Metro → Las Letras.'),
+        block('11:20','casaDeCervantes','Frases en el suelo.'),
+        block('12:00','laVenenciaNA','Café/limonada.'),
+        block('13:00','serrano','Salto a Salamanca.'),
+        block('14:00','mercadoPaz','Almuerzo.'),
+        block('15:30','man','Arte & arqueología.'),
+        block('17:00','jorgeJuan','Compras elegantes.'),
+        block('18:30','retiro','Respirar y cerrar.')
+      ]
+    },
+    thursday: {
+      A: [
+        block('09:00','paracaidista','Rooftop temprano.'),
+        block('09:50','biciCafe','Café especialidad.'),
+        block('10:30','fuencarral','Cruce a Chueca.'),
+        block('11:15','plazaChueca','Ambiente local.'),
+        block('12:00','tribunal','Metro → Chamberí.'),
+        block('12:20','sorolla','Museo íntimo.'),
+        block('13:40','ponzano','Bocados sin alcohol posible.'),
+        block('15:30','serrano','Bajada a Salamanca.'),
+        block('17:30','retiro','Siesta/lectura.'),
+        block('19:00','granVia','Luces y miradores.')
+      ],
+      B: [
+        block('09:00','cafeComercial','Desayuno.'),
+        block('09:40','condeDuque','Centro cultural y patio.'),
+        block('10:40','marilians','Vinilos foco indie.'),
+        block('11:20','tribunal','Metro → Las Letras.'),
+        block('11:40','casaDeCervantes','Barrio literario.'),
+        block('12:30','laVenenciaNA','Café/limonada.'),
+        block('13:15','sanAnton','Picoteo.'),
+        block('15:00','serrano','Tarde en Salamanca.'),
+        block('17:30','retiro','Estanque o Palacio de Cristal.')
+      ],
+      C: [
+        block('09:00','hanso2','Desayuno.'),
+        block('09:40','fuencarral','Hacia Malasaña.'),
+        block('10:10','dosMayo','Fotos & vida local.'),
+        block('11:00','tribunal','Metro → Madrid Río.'),
+        block('11:30','matadero','Arquitectura industrial.'),
+        block('13:00','madridRio','Paseo de ribera.'),
+        block('14:30','serrano','Subida a Salamanca.'),
+        block('15:00','mercadoPaz','Almuerzo clásico.'),
+        block('16:30','man','Cierre artístico.')
+      ]
+    },
+    friday: {
+      A: [
+        block('09:00','hanso2','Desayuno.'),
+        block('09:40','marilians','Vinilos (rare).'),
+        block('10:20','escridiscos','Rock clásico.'),
+        block('11:00','tribunal','Metro → Las Letras.'),
+        block('11:20','casaDeCervantes','Paseo literario.'),
+        block('12:00','laVenenciaNA','Café / mocktail.'),
+        block('12:45','serrano','Salto a Salamanca.'),
+        block('13:30','mercadoPaz','Tortilla / raciones.'),
+        block('15:00','man','Museo rápido.'),
+        block('16:30','retiro','Golden hour.'),
+        block('18:00','granVia','Compras final.')
+      ],
+      B: [
+        block('09:00','cafeComercial','Desayuno.'),
+        block('09:40','condeDuque','Exposiciones / patio.'),
+        block('10:30','paracaidista','Diseño y rooftop.'),
+        block('11:15','tribunal','Metro → La Latina.'),
+        block('11:35','cavaBaja','Paseo de tabernas.'),
+        block('12:30','almendro13','Huevos rotos / bocata de pringá'),
+        block('14:00','serrano','Compras elegantes.'),
+        block('16:00','retiro','Descanso y paseo.')
+      ],
+      C: [
+        block('09:00','hanso2','Arranque suave.'),
+        block('09:40','plazaChueca','Terrazas y fachadas.'),
+        block('10:15','marilians','Últimos vinilos.'),
+        block('11:00','tribunal','Metro → Chamberí.'),
+        block('11:20','sorolla','Casa-taller luminosa.'),
+        block('12:30','ponzano','Tapeo sin alcohol.'),
+        block('14:30','serrano','Boutiques y paseo.'),
+        block('16:30','retiro','Fotos y respiro.')
+      ]
+    }
+  };
+
+  // ==== UI y mapa ====
+  const daySelect = document.getElementById('daySelect');
+  const altSelect = document.getElementById('altSelect');
+  const paceSelect = document.getElementById('paceSelect');
+  const timelineEl = document.getElementById('timeline');
+  const summaryList = document.getElementById('summaryList');
+  const hoodFilters = document.getElementById('hoodFilters');
+
+  const restoLists = [document.getElementById('restoList'), document.getElementById('restoList_m')].filter(Boolean);
+  const restoSearchInputs = [document.getElementById('restoSearch'), document.getElementById('restoSearch_m')].filter(Boolean);
+  const toggleRestoLayerInputs = [document.getElementById('toggleRestoLayer'), document.getElementById('toggleRestoLayer_m')].filter(Boolean);
+
+  const barLists = [document.getElementById('barList'), document.getElementById('barList_m')].filter(Boolean);
+  const barSearchInputs = [document.getElementById('barSearch'), document.getElementById('barSearch_m')].filter(Boolean);
+  const toggleBarLayerInputs = [document.getElementById('toggleBarLayer'), document.getElementById('toggleBarLayer_m')].filter(Boolean);
+  const chkArrozInputs = [document.getElementById('chkArroz'), document.getElementById('chkArroz_m')].filter(Boolean);
+  const chkTabernaInputs = [document.getElementById('chkTaberna'), document.getElementById('chkTaberna_m')].filter(Boolean);
+
+  function syncCheckbox(changed, peers){ peers.forEach(p=>{ if(p && p!==changed) p.checked = changed.checked; }); }
+  function syncInput(changed, peers){ peers.forEach(p=>{ if(p && p!==changed) p.value = changed.value; }); }
+
+  const map = L.map('map', { tap: false }).setView([40.4239,-3.6967], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  const grpRoute = L.layerGroup().addTo(map);
+  const grpMarkers = L.layerGroup().addTo(map);
+  const grpRestaurants = L.layerGroup().addTo(map);
+  const grpBars = L.layerGroup().addTo(map);
+
+  function iconNum(n,color='#111'){ return L.divIcon({ className:'marker-num', html:`<div class='marker-num' style='background:${color}'>${n}</div>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28] }); }
+  function iconResto(){ return L.divIcon({ className:'marker-num', html:`<div class='marker-num' style='background:#0ea5e9'>🍽️</div>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28] }); }
+  function iconBar(kind){ const emoji = kind==='arroz' ? '🥘' : '🍷'; return L.divIcon({ className:'marker-num', html:`<div class='marker-num' style='background:#10b981'>${emoji}</div>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28] }); }
+
+  const hoodList = ['Chueca','Malasaña','Salamanca','Lavapiés','Las Letras','La Latina','Chamberí','Conde Duque','Madrid Río','Centro','Chamartín','Tetuán','Retiro','Prosperidad','Quintana'];
+  const hoodState = Object.fromEntries(hoodList.map(h=>[h,true]));
+  hoodFilters.innerHTML = hoodList.map(h=>`<label class='flex items-center gap-2'><input type='checkbox' data-hood='${h}' checked class='accent-slate-900'> <span>${h}</span></label>`).join('');
+  Array.from(hoodFilters.querySelectorAll('input')).forEach(inp=>{
+    inp.addEventListener('change', ()=>{ hoodState[inp.dataset.hood] = inp.checked; render(); renderRestaurants(); renderBars(); });
+  });
+
+  function render(){
+    const day = daySelect.value; const alt = altSelect.value;
+    const items = itineraries[day][alt];
+    grpRoute.clearLayers(); grpMarkers.clearLayers();
+    timelineEl.innerHTML = ''; summaryList.innerHTML = '';
+    const bounds = [];
+    const filtered = items.filter(it=> hoodState[it.hood] !== false);
+    filtered.forEach((it, idx)=>{
+      const marker = L.marker([it.lat, it.lng], { icon: iconNum(idx+1) })
+        .bindPopup(`<strong>${it.time} · ${it.name}</strong><br>${it.hood} · ${it.cat}${it.note?('<br>'+it.note):''}`)
+        .addTo(grpMarkers);
+      bounds.push([it.lat, it.lng]);
+      const catColor = { walk:'bg-blue-100 text-blue-700', cafe:'bg-rose-100 text-rose-700', food:'bg-emerald-100 text-emerald-700', art:'bg-violet-100 text-violet-700', shops:'bg-slate-100 text-slate-700', metro:'bg-amber-100 text-amber-700', vinyl:'bg-teal-100 text-teal-700', outdoors:'bg-lime-100 text-lime-700' }[it.cat] || 'bg-slate-100 text-slate-700';
+      const card = document.createElement('div');
+      card.className = 'rounded-xl border border-slate-200 p-3 flex items-start gap-3';
+      card.innerHTML = `
+        <div class='flex-shrink-0 mt-1'>
+          <div class='w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold'>${idx+1}</div>
+        </div>
+        <div class='flex-1'>
+          <div class='flex items-center gap-2'>
+            <div class='text-sm font-semibold'>${it.time}</div>
+            <span class='text-xs ${catColor} rounded-full px-2 py-0.5 capitalize'>${it.cat}</span>
+            <span class='text-xs rounded-full px-2 py-0.5 bg-slate-100 text-slate-600'>${it.hood}</span>
+          </div>
+          <div class='text-base font-medium'>${it.name}</div>
+          ${it.note ? `<div class='text-sm text-slate-600 mt-0.5'>${it.note}</div>` : ''}
+        </div>`;
+      timelineEl.appendChild(card);
+      const li = document.createElement('li');
+      li.innerHTML = `<span class='text-slate-500'>${it.time}</span> · <strong>${it.name}</strong> <span class='text-slate-500'>(${it.hood})</span>`;
+      summaryList.appendChild(li);
+      if(idx>0){
+        const prev = filtered[idx-1];
+        const color = (it.cat==='metro' || prev.cat==='metro') ? '#f59e0b' : '#3b82f6';
+        const dash = (it.cat==='metro' || prev.cat==='metro') ? '8 8' : null;
+        L.polyline([[prev.lat,prev.lng],[it.lat,it.lng]], {color, weight:4, opacity:0.9, dashArray:dash}).addTo(grpRoute);
+      }
+    });
+    if(bounds.length){ map.fitBounds(bounds, { padding:[30,30] }); }
+  }
+
+  function currentSearchValue(inputs){
+    if(!inputs.length) return '';
+    const active = inputs.find(i=> document.activeElement===i);
+    return (active ? active.value : inputs[0].value) || '';
+  }
+
+  // === Top Restaurantes ===
+  function renderRestaurants(){
+    grpRestaurants.clearLayers();
+    const q = currentSearchValue(restoSearchInputs).toLowerCase().trim();
+    const list = Object.entries(POI)
+      .filter(([k,v])=> v.top === true && hoodState[v.hood] !== false)
+      .map(([k,v])=> ({key:k, ...v}))
+      .filter(r=> !q || r.name.toLowerCase().includes(q) || (r.hood||'').toLowerCase().includes(q) || (r.style||'').toLowerCase().includes(q));
+
+    restoLists.forEach(el=>{ if(el) el.innerHTML=''; });
+
+    list.forEach(r=>{
+      const m = L.marker([r.lat, r.lng], { icon: iconResto() })
+        .bindPopup(`<strong>${r.name}</strong><br>${r.hood}${r.style?(' · '+r.style):''}`);
+      const showLayer = toggleRestoLayerInputs.some(i=> i && i.checked);
+      if(showLayer){ m.addTo(grpRestaurants); }
+
+      const cardHTML = `
+        <div class='text-base font-semibold'>${r.name}</div>
+        <div class='text-sm text-slate-600'>${r.hood}${r.style?(' · '+r.style):''}</div>
+        <div class='flex gap-2'>
+          <button class='px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800' data-center='${r.key}'>Ver en mapa</button>
+        </div>`;
+
+      restoLists.forEach(listEl=>{
+        if(!listEl) return;
+        const card = document.createElement('div');
+        card.className = 'rounded-xl border border-slate-200 p-3 bg-white flex flex-col gap-2';
+        card.innerHTML = cardHTML;
+        card.querySelector('[data-center]').addEventListener('click', ()=>{
+          map.flyTo([r.lat, r.lng], 16, { duration: 0.8 });
+          setTimeout(()=>{ m.openPopup(); }, 850);
+        });
+        listEl.appendChild(card);
+      });
+    });
+
+    const totalCards = restoLists.reduce((n,el)=> n + (el? el.children.length : 0), 0);
+    console.assert(totalCards >= 1, 'Restaurantes no renderizados');
+  }
+
+  restoSearchInputs.forEach(inp=> inp && inp.addEventListener('input', e=>{ syncInput(e.target, restoSearchInputs); renderRestaurants(); }));
+  toggleRestoLayerInputs.forEach(inp=> inp && inp.addEventListener('change', e=>{ syncCheckbox(e.target, toggleRestoLayerInputs); renderRestaurants(); }));
+
+  // === Arrocerías & Tabernas ===
+  function renderBars(){
+    grpBars.clearLayers();
+    const q = currentSearchValue(barSearchInputs).toLowerCase().trim();
+    const showArroz = chkArrozInputs.every(i=> !i) ? true : chkArrozInputs.some(i=> i && i.checked);
+    const showTaberna = chkTabernaInputs.every(i=> !i) ? true : chkTabernaInputs.some(i=> i && i.checked);
+
+    const list = Object.entries(POI)
+      .filter(([k,v])=> (v.cat==='arroz' || v.cat==='taberna'))
+      .filter(([k,v])=> hoodState[v.hood] !== false)
+      .filter(([k,v])=> (v.cat==='arroz' && showArroz) || (v.cat==='taberna' && showTaberna))
+      .map(([k,v])=> ({key:k, ...v}))
+      .filter(r=> !q || r.name.toLowerCase().includes(q) || (r.hood||'').toLowerCase().includes(q) || (r.style||'').toLowerCase().includes(q));
+
+    barLists.forEach(el=>{ if(el) el.innerHTML=''; });
+
+    list.forEach(r=>{
+      const m = L.marker([r.lat, r.lng], { icon: iconBar(r.cat) })
+        .bindPopup(`<strong>${r.name}</strong><br>${r.hood}${r.style?(' · '+r.style):''}`);
+      const showLayer = toggleBarLayerInputs.some(i=> i && i.checked);
+      if(showLayer){ m.addTo(grpBars); }
+
+      const badge = r.cat==='arroz' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+      const cardHTML = `
+        <div class='flex items-center gap-2'>
+          <div class='text-base font-semibold'>${r.name}</div>
+          <span class='text-xs ${badge} rounded-full px-2 py-0.5'>${r.cat}</span>
+        </div>
+        <div class='text-sm text-slate-600'>${r.hood}${r.style?(' · '+r.style):''}</div>
+        <div class='flex gap-2'>
+          <button class='px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm hover:bg-slate-800' data-center='${r.key}'>Ver en mapa</button>
+        </div>`;
+
+      barLists.forEach(listEl=>{
+        if(!listEl) return;
+        const card = document.createElement('div');
+        card.className = 'rounded-xl border border-slate-200 p-3 bg-white flex flex-col gap-2';
+        card.innerHTML = cardHTML;
+        card.querySelector('[data-center]').addEventListener('click', ()=>{
+          map.flyTo([r.lat, r.lng], 16, { duration: 0.8 });
+          setTimeout(()=>{ m.openPopup(); }, 850);
+        });
+        listEl.appendChild(card);
+      });
+    });
+
+    const totalCards = barLists.reduce((n,el)=> n + (el? el.children.length : 0), 0);
+    console.assert(totalCards >= 1, 'Arrocerías/Tabernas no renderizadas');
+  }
+
+  barSearchInputs.forEach(inp=> inp && inp.addEventListener('input', e=>{ syncInput(e.target, barSearchInputs); renderBars(); }));
+  toggleBarLayerInputs.forEach(inp=> inp && inp.addEventListener('change', e=>{ syncCheckbox(e.target, toggleBarLayerInputs); renderBars(); }));
+  chkArrozInputs.forEach(inp=> inp && inp.addEventListener('change', e=>{ syncCheckbox(e.target, chkArrozInputs); renderBars(); }));
+  chkTabernaInputs.forEach(inp=> inp && inp.addEventListener('change', e=>{ syncCheckbox(e.target, chkTabernaInputs); renderBars(); }));
+
+  // ===== Exportar .ICS =====
+  document.getElementById('btnExport').addEventListener('click', ()=>{
+    const day = daySelect.value; const alt = altSelect.value; const items = itineraries[day][alt];
+    const today = dayjs();
+    const dayMap = { wednesday:3, thursday:4, friday:5 }; // 0=Dom ... 6=Sáb
+    let target = today.day(dayMap[day]);
+    if(target.isBefore(today,'day')) target = target.add(7,'day');
+    function toDT(t){ const [H,M] = t.split(':').map(Number); return target.hour(H).minute(M).second(0).format('YYYYMMDDTHHmmss'); }
+
+    const ICS_HEAD = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Trip Planner//Madrid//ES`;
+    const ICS_FOOT = `END:VCALENDAR`;
+
+    const icsEvents = items.map((it, idx)=>{
+      const dur = (it.cat==='food' || it.cat==='cafe') ? 90 : 60;
+      const start = toDT(it.time);
+      const end = dayjs(start, 'YYYYMMDDTHHmmss').add(dur, 'minute').format('YYYYMMDDTHHmmss');
+      const uid = `${day}-${alt}-${idx}@madrid.local`;
+      const loc = `${it.name} — ${it.hood}`;
+      const desc = `${it.cat}${it.note?(' • '+it.note):''}`;
+      return `BEGIN:VEVENT\nUID:${uid}\nDTSTAMP:${dayjs().format('YYYYMMDDTHHmmssZ')}\nDTSTART:${start}\nDTEND:${end}\nSUMMARY:${it.time} ${it.name}\nLOCATION:${loc}\nDESCRIPTION:${desc}\nEND:VEVENT`;
+    }).join('\n');
+
+    const ics = `${ICS_HEAD}\n${icsEvents}\n${ICS_FOOT}`;
+    const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Madrid-${day}-${alt}.ics`; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  });
+
+  // ===== Tests =====
+  (function tests(){
+    try {
+      const inputs = Array.from(document.querySelectorAll('#hoodFilters input'));
+      console.assert(inputs.length >= 12, `Esperaba ≥12 filtros de barrio, obtuve ${inputs.length}`);
+      render();
+      console.assert(document.querySelectorAll('#timeline > div').length > 0, 'Timeline vacío tras render');
+      renderRestaurants();
+      renderBars();
+      const restoCards = (document.getElementById('restoList')?.children.length||0) + (document.getElementById('restoList_m')?.children.length||0);
+      const barCards = (document.getElementById('barList')?.children.length||0) + (document.getElementById('barList_m')?.children.length||0);
+      console.assert(restoCards >= 1, 'Restaurantes no renderizados');
+      console.assert(barCards >= 1, 'Arrocerías/Tabernas no renderizadas');
+      console.log('[TEST] OK: UI inicializada.');
+    } catch(e){ console.error('[TEST] Error en pruebas:', e); }
+  })();
+
+  // ===== Tabs móviles =====
+  const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+  const sections = Array.from(document.querySelectorAll('.section'));
+  function setTab(tab){
+    tabButtons.forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===tab)));
+    sections.forEach(s=>{ s.classList.toggle('active', s.dataset.section===tab || window.innerWidth>=1024); });
+    setTimeout(()=>{ map.invalidateSize(); }, 250);
+  }
+  tabButtons.forEach(b=> b.addEventListener('click', ()=> setTab(b.dataset.tab)) );
+
+  // Render inicial
+  render();
+  renderRestaurants();
+  renderBars();
+  </script>
+</body>
+</html>
